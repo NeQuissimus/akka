@@ -389,4 +389,10 @@ object Sink {
   def lazyInit[T, M](sinkFactory: T ⇒ Future[Sink[T, M]], fallback: () ⇒ M): Sink[T, Future[M]] =
     Sink.fromGraph(new LazySink(sinkFactory, fallback))
 
+  /**
+   * Creates a `Sink` which uses Akka-IO's unconnected UDP mode to emit each ByteString it receives to the given target address.
+   */
+  def simpleUdp(host: String, port: Int): Sink[ByteString, Unit] =
+    new Sink(new SimpleUdpSink(new InetSocketAddress(host, port), none, shape("SimpleUdpSink")))
+
 }
