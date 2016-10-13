@@ -218,12 +218,6 @@ object Sink {
     new Sink(scaladsl.Sink.actorSubscriber(props))
 
   /**
-   * Creates a `Sink` which uses Akka-IO's unconnected UDP mode to emit each ByteString it receives to the given target address.
-   */
-  def simpleUdp(host: String, port: Int): Sink[ByteString, Unit] =
-    new Sink(scaladsl.Sink.simpleUdp(host, port))
-
-  /**
    * A graph with the shape of a sink logically is a sink, this method makes
    * it so also in type.
    */

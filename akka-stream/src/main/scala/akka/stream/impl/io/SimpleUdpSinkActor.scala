@@ -19,9 +19,8 @@ private[akka] object SimpleUdpSinkActor {
 
 /** INTERNAL API */
 private[akka] class SimpleUdpSinkActor(target: InetSocketAddress) extends ActorSubscriber with ActorLogging {
-
-  private var currentRequestStrategy: RequestStrategy = ZeroRequestStrategy
-  override def requestStrategy = currentRequestStrategy
+  private[this] var currentRequestStrategy: RequestStrategy = ZeroRequestStrategy
+  override protected def requestStrategy = currentRequestStrategy
 
   import context.system
 
@@ -31,15 +30,17 @@ private[akka] class SimpleUdpSinkActor(target: InetSocketAddress) extends ActorS
     case Udp.SimpleSenderReady ⇒
       currentRequestStrategy = WatermarkRequestStrategy(10) // TODO arbitrary value, how can we do better here (needs dropping to low level)
       context.become(ready(sender()))
+    case OnComplete ⇒ context.stop(self)
+    case OnError(cause) ⇒
+      log.error(cause, "Shutting down (targetted at: {}", target)
+      context.stop(self)
   }
 
-  def ready(send: ActorRef): Receive = {
-    case OnNext(bytes: ByteString) ⇒ send ! Udp.Send(bytes, target)
+  def ready(targetRef: ActorRef): Receive = {
+    case OnNext(bytes: ByteString) ⇒ targetRef ! Udp.Send(bytes, target)
     case OnComplete                ⇒ context.stop(self)
-
     case OnError(cause) ⇒
       log.error(cause, "Shutting down (targetted at: {})", target)
       context.stop(self)
-
   }
 }

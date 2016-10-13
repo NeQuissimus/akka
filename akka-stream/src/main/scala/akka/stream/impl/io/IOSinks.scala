@@ -3,10 +3,12 @@
  */
 package akka.stream.impl.io
 
-import java.io.OutputStream
+import java.net.InetSocketAddress
 import java.nio.file.{ Path, StandardOpenOption }
+import java.io.OutputStream
 
 import akka.stream._
+import akka.stream.actor.ActorSubscriber
 import akka.stream.impl.SinkModule
 import akka.stream.impl.StreamLayout.Module
 import akka.stream.impl.Stages.DefaultAttributes.IODispatcher
@@ -34,7 +36,7 @@ private[akka] final class FileSink(f: Path, options: Set[StandardOpenOption], va
     val dispatcher = context.effectiveAttributes.get[Dispatcher](IODispatcher).dispatcher
 
     val ref = materializer.actorOf(context, props.withDispatcher(dispatcher))
-    (akka.stream.actor.ActorSubscriber[ByteString](ref), ioResultPromise.future)
+    (ActorSubscriber[ByteString](ref), ioResultPromise.future)
   }
 
   override protected def newInstance(shape: SinkShape[ByteString]): SinkModule[ByteString, Future[IOResult]] =
@@ -61,7 +63,7 @@ private[akka] final class OutputStreamSink(createOutput: () ⇒ OutputStream, va
     val props = OutputStreamSubscriber.props(os, ioResultPromise, settings.maxInputBufferSize, autoFlush)
 
     val ref = materializer.actorOf(context, props)
-    (akka.stream.actor.ActorSubscriber[ByteString](ref), ioResultPromise.future)
+    (ActorSubscriber[ByteString](ref), ioResultPromise.future)
   }
 
   override protected def newInstance(shape: SinkShape[ByteString]): SinkModule[ByteString, Future[IOResult]] =
@@ -69,4 +71,23 @@ private[akka] final class OutputStreamSink(createOutput: () ⇒ OutputStream, va
 
   override def withAttributes(attr: Attributes): Module =
     new OutputStreamSink(createOutput, attr, amendShape(attr), autoFlush)
+}
+
+/**
+ * INTERNAL API
+ *
+ * Creates an Actor which uses Akka-IO's unconnected UDP mode to emit each ByteString it receives to the given target address.
+ */
+private[akka] final class SimpleUdpSink(target: InetSocketAddress, val attributes: Attributes, shape: SinkShape[ByteString]) extends SinkModule[ByteString, Unit](shape) {
+
+  override def create(context: MaterializationContext) = {
+    val materializer = ActorMaterializerHelper.downcast(context.materializer)
+    val impl = materializer.actorOf(context, SimpleUdpSinkActor.props(target))
+    val sub = ActorSubscriber[ByteString](impl)
+
+    (sub, ())
+  }
+
+  override protected def newInstance(shape: SinkShape[ByteString]): SinkModule[ByteString, Unit] = new SimpleUdpSink(target, attributes, shape)
+  override def withAttributes(attr: Attributes): Module = new SimpleUdpSink(target, attr, amendShape(attr))
 }

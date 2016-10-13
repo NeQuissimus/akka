@@ -14,7 +14,6 @@ import akka.stream.Attributes.InputBuffer
 import akka.stream._
 import akka.stream.impl.Stages.DefaultAttributes
 import akka.stream.impl.StreamLayout.AtomicModule
-import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 import java.util.function.BiConsumer
 import akka.actor.{ ActorRef, Props }
@@ -551,23 +550,4 @@ final private[stream] class LazySink[T, M](sinkFactory: T ⇒ Future[Sink[T, M]]
     }
     (stageLogic, promise.future)
   }
-
-/**
- * INTERNAL API
- *
- * Creates an Actor which uses Akka-IO's unconnected UDP mode to emit each ByteString it receives to the given target address.
- */
-private[akka] final class SimpleUdpSink(target: InetSocketAddress, val attributes: OperationAttributes, shape: SinkShape[ByteString]) extends SinkModule[ByteString, Unit](shape) {
-
-  override def create(materializer: ActorFlowMaterializerImpl, flowName: String): (Subscriber[ByteString], Unit) = {
-    val impl = materializer.actorOf(SimpleUdpSinkActor.props(target), s"$flowName-simpleUdpSink")
-    val sub = ActorSubscriber[ByteString](impl)
-
-    (sub, ())
-  }
-
-  override protected def newInstance(shape: SinkShape[ByteString]): SinkModule[ByteString, Unit] = new SimpleUdpSink(target, attributes, shape)
-  override def withAttributes(attr: OperationAttributes): Module = new SimpleUdpSink(target, attr, amendShape(attr))
-
-  override def toString: String = "SimpleUdpSink"
 }

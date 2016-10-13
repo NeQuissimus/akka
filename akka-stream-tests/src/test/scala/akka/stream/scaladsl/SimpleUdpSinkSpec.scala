@@ -5,18 +5,18 @@ package akka.stream.scaladsl
 
 import java.net.InetSocketAddress
 
-import akka.actor.{Actor, ActorRef, Props}
-import akka.io.{IO, Udp}
-import akka.stream.ActorFlowMaterializer
-import akka.stream.testkit.{AkkaSpec, TestUtils}
+import akka.actor.{ Actor, ActorRef, Props }
+import akka.io.{ IO, Udp ⇒ IOUdp }
+import akka.stream.ActorMaterializer
+import akka.stream.testkit.{ StreamSpec, TestUtils }
 import akka.testkit.TestProbe
 import akka.util.ByteString
 
-class SimpleUdpSinkSpec extends AkkaSpec {
+class SimpleUdpSinkSpec extends StreamSpec {
 
-  implicit val materializer = ActorFlowMaterializer()
+  implicit val materializer = ActorMaterializer()
 
-  "A Flow with Sink.simpleUdp" must {
+  "A Flow with Udp.simpleUdp" must {
     val addr = TestUtils.temporaryServerAddress(udp = true)
     val serverProbe = createUdpServer(addr)
 
@@ -26,7 +26,7 @@ class SimpleUdpSinkSpec extends AkkaSpec {
     val words = Source(List(Hello, World, ExclamationMark))
 
     "send all received ByteStrings using UDP" in {
-      words.runWith(Sink.simpleUdp(addr.getAddress.getHostAddress, addr.getPort))
+      words.runWith(Udp.simpleUdp(addr.getAddress.getHostAddress, addr.getPort))
 
       serverProbe.expectMsg(Hello)
       serverProbe.expectMsg(World)
@@ -43,18 +43,18 @@ class SimpleUdpSinkSpec extends AkkaSpec {
   }
 
   class ServerActor(addr: InetSocketAddress, p: TestProbe) extends Actor {
-    IO(Udp)(context.system) ! Udp.Bind(self, addr)
+    IO(IOUdp)(context.system) ! IOUdp.Bind(self, addr)
 
     def receive = {
-      case Udp.Bound(local) ⇒
+      case IOUdp.Bound(local) ⇒
         p.ref ! "init-done"
         context.become(ready(sender()))
     }
 
     def ready(socket: ActorRef): Receive = {
-      case Udp.Received(data, remote) ⇒ p.ref ! data
-      case Udp.Unbind                 ⇒ socket ! Udp.Unbind
-      case Udp.Unbound                ⇒ context.stop(self)
+      case IOUdp.Received(data, remote) ⇒ p.ref ! data
+      case IOUdp.Unbind                 ⇒ socket ! IOUdp.Unbind
+      case IOUdp.Unbound                ⇒ context.stop(self)
     }
   }
 
